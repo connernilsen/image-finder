@@ -3,8 +3,8 @@ from . import database
 database_version = 0.1
 
 
-def check_db_version(db_path=database.default_path):
-    worker = database.DatabaseWorker(db_path=db_path)
+def check_db_version(db_path, db_timeout):
+    worker = database.DatabaseWorker(db_path=db_path, db_timeout=db_timeout)
     worker.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name=:table_name ;",
                    {"table_name": "metadata"})
 
@@ -22,11 +22,11 @@ def check_db_version(db_path=database.default_path):
         return
 
     worker.drop_db()
-    recreate_db(db_path)
+    recreate_db(db_path, db_timeout)
 
 
-def recreate_db(db_path):
-    worker = database.DatabaseWorker(db_path=db_path)
+def recreate_db(db_path, db_timeout):
+    worker = database.DatabaseWorker(db_path=db_path, db_timeout=db_timeout)
     worker.execute("CREATE TABLE metadata ("
                    "version REAL"
                    ") ;", "")

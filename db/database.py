@@ -6,7 +6,7 @@ default_path = "./db/image_store.db"
 
 
 class DatabaseWorker:
-    def __init__(self, db_path, db_timeout=5):
+    def __init__(self, db_path, db_timeout):
         self.db_path = db_path
         self.__db = sqlite3.connect(db_path, timeout=db_timeout)
         self.__cursor = self.__db.cursor()

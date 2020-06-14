@@ -10,29 +10,41 @@ class ImageWorker:
     p_hash_limit = 8
     d_hash_width = avg_hash_resize + 1
 
-    def __init__(self, file, calculate_p_hash=True):
-        self.file = file
+    def __init__(self, file, method, db_path, db_timeout):
+        self.name = file
         self.image = Image.open(file).convert("L")
         md5_calc = md5()
         md5_calc.update(str(list(self.image.getdata())).encode("utf-8"))
         self.md5 = md5_calc.hexdigest()
 
-        img_handler = DatabaseImageHandler()
+        img_handler = DatabaseImageHandler(db_path, db_timeout)
         db_img = img_handler.find_image(self.md5)
 
         if db_img is None:
-            self.a_hash = self.average_hash()
-            if calculate_p_hash:
+            if method == "P" or "PERCEPTION":
                 self.p_hash = self.perception_hash()
             else:
                 self.p_hash = None
-            self.d_hash = self.difference_hash()
+            if method == "A" or "AVERAGE":
+                self.a_hash = self.average_hash()
+            else:
+                self.a_hash = None
+            if method == "D" or "DIFFERENCE":
+                self.d_hash = self.difference_hash()
+            else:
+                self.d_hash = None
+
             self.exists = False
+            self.copy = False
         else:
-            self.a_hash = db_img["a_hash"]
-            self.p_hash = db_img["p_hash"]
-            self.d_hash = db_img["d_hash"]
+            self.a_hash = db_img[1]
+            self.p_hash = db_img[2]
+            self.d_hash = db_img[3]
             self.exists = True
+            if db_img[0] == self.name:
+                self.copy = False
+            else:
+                self.exists = True
 
     # Algorithm overview from
     # https://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
@@ -108,16 +120,18 @@ class ImageWorker:
 
         return self.create_hash(bits)
 
+    def compare(self, other_image, method):
+        if method == "P" or "PERCEPTION":
+            return self.compare_p_hash(other_image)
+        elif method == "A" or "AVERAGE":
+            return self.compare_a_hash(other_image)
+        else:
+            return self.compare_d_hash(other_image)
+
     def compare_a_hash(self, other_image):
         return self.hamming_distance(self.a_hash, other_image.a_hash)
 
     def compare_p_hash(self, other_image):
-        if self.p_hash is None:
-            print("This image has no hash")
-            return 256
-        if other_image.p_hash is None:
-            print ("Other image has no hash")
-            return 256
         return self.hamming_distance(self.p_hash, other_image.p_hash)
 
     def compare_d_hash(self, other_image):
@@ -126,6 +140,12 @@ class ImageWorker:
     # Uses Hamming distance algorithm
     @staticmethod
     def hamming_distance(hash_a, hash_b):
+        if hash_a is None:
+            print("This image has no hash")
+            return 256
+        if hash_b is None:
+            print ("Other image has no hash")
+            return 256
         if len(hash_a) != len(hash_b):
             raise Exception(f"Hash lengths were not the same, a: {len(hash_a)} b: {len(hash_b)}")
         distance = 0
