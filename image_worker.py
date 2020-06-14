@@ -1,4 +1,3 @@
-import base64
 from db.database_image_handler import DatabaseImageHandler
 from hashlib import md5
 from math import sqrt, cos, pi
@@ -28,10 +27,12 @@ class ImageWorker:
             else:
                 self.p_hash = None
             self.d_hash = self.difference_hash()
+            self.exists = False
         else:
             self.a_hash = db_img["a_hash"]
             self.p_hash = db_img["p_hash"]
             self.d_hash = db_img["d_hash"]
+            self.exists = True
 
     # Algorithm overview from
     # https://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
