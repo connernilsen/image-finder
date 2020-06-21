@@ -38,6 +38,7 @@ def recreate_db(db_path, db_timeout):
                    "a_hash TEXT NOT NULL,"
                    "d_hash TEXT NOT NULL,"
                    "name TEXT NOT NULL,"
+                   "reduced_image_size INTEGER NOT NULL,"
                    "created DATETIME DEFAULT CURRENT_TIMESTAMP,"
                    "width INTEGER,"
                    "height INTEGER"

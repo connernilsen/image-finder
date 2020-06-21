@@ -5,31 +5,54 @@ from PIL import Image
 
 
 class ImageWorker:
-    avg_hash_resize = 8
-    p_hash_resize = 32
-    p_hash_limit = 8
-    d_hash_width = avg_hash_resize + 1
+    def __init__(self, working_dir, file, reduced_size_factor):
+        # Set size and calculation values
+        self.avg_hash_resize = reduced_size_factor
+        self.p_hash_resize = reduced_size_factor * 4
+        self.p_hash_limit = reduced_size_factor
+        self.d_hash_width = self.p_hash_resize + 1
 
-    def __init__(self, file, method, db_path, db_timeout):
+        # Set values that will be provided or calculated in construct()
         self.name = file
-        self.image = Image.open(file).convert("L")
+        self.working_dir = working_dir
+        self.image = None
+        self.md5 = None
+        self.verbose = None
+        self.copy = None
+        self.exists = None
+        self.p_hash = None
+        self.a_hash = None
+        self.d_hash = None
+        self.method = None
+        self.initialized = False
+
+        # Set values that will be updated later on
+        self.exact = []
+        self.alike = {}
+
+    async def construct(self, method, db_path, db_timeout, verbose=False):
+        self.initialized = True
+        self.verbose = verbose
+        self.image = Image.open(self.working_dir + self.name).convert("L")
         md5_calc = md5()
         md5_calc.update(str(list(self.image.getdata())).encode("utf-8"))
         self.md5 = md5_calc.hexdigest()
+        self.alike[self.md5] = self
+        self.method = method
 
         img_handler = DatabaseImageHandler(db_path, db_timeout)
         db_img = img_handler.find_image(self.md5)
 
-        if db_img is None:
-            if method == "P" or "PERCEPTION":
+        if db_img is None or db_img[4] != self.avg_hash_resize:
+            if method == "P" or method == "PERCEPTION":
                 self.p_hash = self.perception_hash()
             else:
                 self.p_hash = None
-            if method == "A" or "AVERAGE":
+            if method == "A" or method == "AVERAGE":
                 self.a_hash = self.average_hash()
             else:
                 self.a_hash = None
-            if method == "D" or "DIFFERENCE":
+            if method == "D" or method == "DIFFERENCE":
                 self.d_hash = self.difference_hash()
             else:
                 self.d_hash = None
@@ -46,9 +69,32 @@ class ImageWorker:
             else:
                 self.exists = True
 
+        return self
+
+    def check_init(self):
+        if self.initialized is False:
+            raise Exception("Worker was not initialized")
+
+    def add_exact(self, dup):
+        self.check_init()
+        self.exact.append(dup)
+
+    def check_alike(self, images, precision):
+        self.check_init()
+        for worker in images:
+            if worker.md5 == self.md5:
+                continue
+            if worker.md5 in self.alike:
+                continue
+            similarity = self.compare(worker, self.method)
+            if similarity <= precision:
+                self.alike.update(worker.alike)
+                worker.alike = self.alike
+
     # Algorithm overview from
     # https://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
     def average_hash(self):
+        self.check_init()
         new_image = self.image.resize((self.avg_hash_resize, self.avg_hash_resize))
         image_data = list(new_image.getdata())
 
@@ -59,6 +105,7 @@ class ImageWorker:
         return self.create_hash(bits)
 
     def perception_hash(self):
+        self.check_init()
         new_image = self.image.resize((self.p_hash_resize, self.p_hash_resize))
         dct = self.discrete_cosine_transform(list(new_image.getdata()))
 
@@ -77,6 +124,7 @@ class ImageWorker:
     # Algorithm from
     # https://www.geeksforgeeks.org/discrete-cosine-transform-algorithm-program/
     def discrete_cosine_transform(self, decomposed_matrix):
+        self.check_init()
         matrix = []
         for i in range(self.p_hash_resize):
             matrix.append(decomposed_matrix[self.p_hash_resize * i:self.p_hash_resize * (i + 1)])
@@ -107,10 +155,11 @@ class ImageWorker:
 
     # Calculate gradient difference
     def difference_hash(self):
-        new_image = self.image.resize((self.d_hash_width, self.avg_hash_resize))
+        self.check_init()
+        new_image = self.image.resize((self.d_hash_width, self.p_hash_resize))
         decomposed_matrix = list(new_image.getdata())
         matrix = []
-        for i in range(self.avg_hash_resize):
+        for i in range(self.p_hash_resize):
             matrix.append(decomposed_matrix[self.d_hash_width * i:self.d_hash_width * (i + 1)])
 
         bits = []
@@ -120,21 +169,28 @@ class ImageWorker:
 
         return self.create_hash(bits)
 
-    def compare(self, other_image, method):
+    def compare(self, other_image, method="P"):
+        self.check_init()
         if method == "P" or "PERCEPTION":
-            return self.compare_p_hash(other_image)
+            value = self._compare_p_hash(other_image)
         elif method == "A" or "AVERAGE":
-            return self.compare_a_hash(other_image)
+            value = self._compare_a_hash(other_image)
         else:
-            return self.compare_d_hash(other_image)
+            value = self._compare_d_hash(other_image)
 
-    def compare_a_hash(self, other_image):
+        if self.verbose:
+            print(f"Hash comparison \n  [{self.working_dir}{self.name}]\n  "
+                  f"[{other_image.working_dir}{other_image.name}]\n\n result: {value}")
+
+        return value
+
+    def _compare_a_hash(self, other_image):
         return self.hamming_distance(self.a_hash, other_image.a_hash)
 
-    def compare_p_hash(self, other_image):
+    def _compare_p_hash(self, other_image):
         return self.hamming_distance(self.p_hash, other_image.p_hash)
 
-    def compare_d_hash(self, other_image):
+    def _compare_d_hash(self, other_image):
         return self.hamming_distance(self.d_hash, other_image.d_hash)
 
     # Uses Hamming distance algorithm
@@ -155,10 +211,13 @@ class ImageWorker:
 
         return distance
 
-    @staticmethod
-    def create_hash(arr):
+    def create_hash(self, arr):
+        self.check_init()
         res = 0
         for i, num in enumerate(arr):
             res += 2**i * num
 
-        return hex(res)
+        hex_val = hex(res)
+        if self.verbose:
+            print(f"Hash value [{self.working_dir}{self.name}]: {hex_val}")
+        return hex_val

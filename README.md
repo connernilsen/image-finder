@@ -12,7 +12,8 @@ each case, the image is scaled down and grayscaled.
 - Average Hashing
   - Takes the average color of the image and determines if 
   each pixel is above or below the average color. A bit-array representation of that is 
-  is converted into a hex representation. One of the fastest, but probably the least precise.
+  is converted into a hex representation. The fastest algorithm, but the least precise since
+  a smaller image is used in reduction.
 - Perceptual Hashing
   - Uses a [discrete cosine transform](https://en.wikipedia.org/wiki/Discrete_cosine_transform)
   to distill the lowest frequency values in an image to determine a fingerprint, which is then
@@ -20,7 +21,8 @@ each case, the image is scaled down and grayscaled.
 - Difference Hashing
   - Creates a hash based on the color gradient across an image. Each color in a row is
   compared to the color directly next to it, and bit values represent a positive or 
-  negative change. A faster one with high precision.
+  negative change. A faster algorithm with high precision (not as fast as average,
+  but not as precise as perceptual -- a good in-between).
   
 Comparisons are done between the hashes using a 
 [Hamming Distance](https://en.wikipedia.org/wiki/Hamming_distance).
