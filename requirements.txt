@@ -1,2 +1,1 @@
 pillow >=7, <8
-imagehash >=4, <5

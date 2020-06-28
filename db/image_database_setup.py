@@ -1,6 +1,30 @@
 from . import database
 
 database_version = 0.1
+migrations = [
+    (0.1, "CREATE TABLE image ("
+          "md5_hash TEXT NOT NULL UNIQUE,"
+          "p_hash TEXT NOT NULL,"
+          "a_hash TEXT NOT NULL,"
+          "d_hash TEXT NOT NULL,"
+          "name TEXT NOT NULL,"
+          "reduced_image_size INTEGER NOT NULL,"
+          "created DATETIME DEFAULT CURRENT_TIMESTAMP,"
+          "width INTEGER,"
+          "height INTEGER,"
+          "CONSTRAINT image_pk "
+          "PRIMARY KEY (md5_hash)"
+          ") ;"
+     ),
+    (0.2, "CREATE TABLE image_ignore ("
+          "md5_hash_1 TEXT NOT NULL,"
+          "md5_hash_2 TEXT NOT NULL,"
+          "created DATETIME DEFAULT CURRENT_TIMESTAMP,"
+          "CONSTRAINT image_ignore_pk"
+          "PRIMARY KEY (md5_hash_1, md5_hash_2)"
+          ") ;"
+     )
+]
 
 
 def check_db_version(db_path, db_timeout):
@@ -10,38 +34,45 @@ def check_db_version(db_path, db_timeout):
 
     row = worker.get_single_result()
     correct_version = True
+    current_version = database_version
     if row is None:
         correct_version = False
+        current_version = 0
     else:
         worker.execute("SELECT version FROM metadata ;", "")
         row = worker.get_single_result()
-        if row is None or row[0] != database:
+        if row is None:
             correct_version = False
+            current_version = 0
+        elif row[0] < database_version:
+            correct_version = False
+            current_version = row[0]
 
     if correct_version:
         return
 
-    worker.drop_db()
-    recreate_db(db_path, db_timeout)
+    update_db(db_path, db_timeout, current_version)
 
 
-def recreate_db(db_path, db_timeout):
+def update_db(db_path, db_timeout, current_version):
     worker = database.DatabaseWorker(db_path=db_path, db_timeout=db_timeout)
     worker.execute("CREATE TABLE metadata ("
                    "version REAL"
                    ") ;", "")
     worker.execute("INSERT INTO metadata VALUES (:version) ;", {"version": database_version})
 
-    worker.execute("CREATE TABLE image ("
-                   "md5_hash TEXT NOT NULL UNIQUE,"
-                   "p_hash TEXT NOT NULL,"
-                   "a_hash TEXT NOT NULL,"
-                   "d_hash TEXT NOT NULL,"
-                   "name TEXT NOT NULL,"
-                   "reduced_image_size INTEGER NOT NULL,"
-                   "created DATETIME DEFAULT CURRENT_TIMESTAMP,"
-                   "width INTEGER,"
-                   "height INTEGER"
-                   ") ;", "")
+    i = 0
+    for migration in migrations:
+        if current_version < migration[0]:
+            break
+        i += 1
+
+    for migration in migrations[i:]:
+        worker.execute(migration[1], "")
 
     worker.commit_changes()
+
+
+def drop_db(db_path, db_timeout):
+    worker = database.DatabaseWorker(db_path=db_path, db_timeout=db_timeout)
+    worker.drop_db()

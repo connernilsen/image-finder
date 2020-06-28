@@ -2,15 +2,18 @@ from db.database_image_handler import DatabaseImageHandler
 from hashlib import md5
 from math import sqrt, cos, pi
 from PIL import Image
+from os import mkdir, path
+from random import randrange
 
 
 class ImageWorker:
-    def __init__(self, working_dir, file, reduced_size_factor):
+    def __init__(self, working_dir, file, reduced_size_factor, avoid_db):
         # Set size and calculation values
         self.avg_hash_resize = reduced_size_factor
         self.p_hash_resize = reduced_size_factor * 4
         self.p_hash_limit = reduced_size_factor
         self.d_hash_width = self.p_hash_resize + 1
+        self.avoid_db = avoid_db
 
         # Set values that will be provided or calculated in construct()
         self.name = file
@@ -25,14 +28,22 @@ class ImageWorker:
         self.d_hash = None
         self.method = None
         self.initialized = False
+        self.db_path = None
+        self.db_timeout = None
 
         # Set values that will be updated later on
         self.exact = []
         self.alike = {}
 
     async def construct(self, method, db_path, db_timeout, verbose=False):
+        self.db_path = db_path
+        self.db_timeout = db_timeout
         self.initialized = True
         self.verbose = verbose
+        if not path.exists(self.working_dir + self.name):
+            raise Exception(f"Image {self.name} not found")
+        if not path.isfile(self.working_dir + self.name):
+            raise Exception(f"Image {self.name} is not a file")
         self.image = Image.open(self.working_dir + self.name).convert("L")
         md5_calc = md5()
         md5_calc.update(str(list(self.image.getdata())).encode("utf-8"))
@@ -40,8 +51,10 @@ class ImageWorker:
         self.alike[self.md5] = self
         self.method = method
 
-        img_handler = DatabaseImageHandler(db_path, db_timeout)
-        db_img = img_handler.find_image(self.md5)
+        db_img = None
+        if not self.avoid_db:
+            img_handler = DatabaseImageHandler(db_path, db_timeout)
+            db_img = img_handler.find_image(self.md5)
 
         if db_img is None or db_img[4] != self.avg_hash_resize:
             if method == "P" or method == "PERCEPTION":
@@ -221,3 +234,39 @@ class ImageWorker:
         if self.verbose:
             print(f"Hash value [{self.working_dir}{self.name}]: {hex_val}")
         return hex_val
+
+    def move(self, new_path):
+        self.check_init()
+        curr_path = self.working_dir + self.name
+        if not path.exists(curr_path):
+            raise Exception(f"Image {self.name} not found before move")
+        if not path.isfile(curr_path):
+            raise Exception(f"Image {self.name} is not a file")
+        if len(self.exact) != 0:
+            suffix = hex(randrange(0, 2**50))
+            new_path = path.join(new_path, suffix)
+            # TODO is this filemode right?
+            mkdir(updated_path, 0)
+        # TODO figure out how to move image
+        # TODO move exact images into the same dir
+
+    def save_image_data(self):
+        self.check_init()
+        if self.avoid_db:
+            raise Exception("avoid_db set but attempting to insert into db")
+        if self.exists:
+            return
+
+        if self.a_hash is None:
+            self.a_hash = self.average_hash()
+        if self.d_hash is None:
+            self.d_hash = self.difference_hash()
+        if self.p_hash is None:
+            self.p_hash = self.perception_hash()
+
+        self.__save()
+
+    def __save(self):
+        image_handler = DatabaseImageHandler(self.db_path, self.db_timeout)
+        image_handler.save_image(self.md5, self.a_hash, self.d_hash, self.p_hash, self.name,
+                                 self.avg_hash_resize, self.image.width, self.image.height)

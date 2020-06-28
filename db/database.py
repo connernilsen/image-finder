@@ -18,6 +18,7 @@ class DatabaseWorker:
     def drop_db(self):
         self.__cursor.execute("DROP TABLE IF EXISTS metadata ;", "")
         self.__cursor.execute("DROP TABLE IF EXISTS image ;", "")
+        self.__cursor.execute("DROP TABLE IF EXISTS image_ignore ;", "")
 
     def execute(self, sql, bindings):
         try:
