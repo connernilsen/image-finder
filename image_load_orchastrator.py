@@ -94,11 +94,11 @@ class ImageLoadOrchastrator:
                 continue
 
             # Copy the alike workers
-            current = worker.alike.values()
+            current = list(worker.alike.values())
             # Add all found MD5s to the found list so that files aren't moved multiple times
             found.extend(list(worker.alike.keys()))
             # Only append to the return list of groups if there are results
-            if len(current) > 1:
+            if len(current) > 1 or (len(current) == 1 and len(current[0].exact) > 0):
                 groups.append(current)
 
         return groups

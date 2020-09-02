@@ -18,7 +18,10 @@ class DatabaseImageHandler:
     def find_image_hashes(self, md5: str) -> List[Dict[str, any]]:
         self.worker.execute("SELECT a_hash, d_hash, p_hash, reduced_size_factor FROM image_hashes "
                             "WHERE md5_hash = :md5", {"md5": md5})
-        return self.worker.zip_objects(self.worker.get_result())
+        # Get a list of hashes of different size factors from a given MD5
+        hash_ls = self.worker.zip_objects(self.worker.get_result())
+        # Create a dictionary with size factor to item
+        return {item["reduced_size_factor"]: item for item in hash_ls}
 
     # Find a possibly existing image ignore request
     def find_image_ignore(self, md5: str, name: str) -> List[Dict[str, any]]:

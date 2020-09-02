@@ -93,21 +93,22 @@ class ImageWorker:
         if not self.avoid_db:
             img_handler = DatabaseImageHandler(db_path, verbose)
             db_img = img_handler.find_image(self.md5)
+            if db_img is not None:
+                self.hashes = img_handler.find_image_hashes(self.md5)
 
         # If no exact image match was found in the db, calculate the hash and set the exists, copy values to false
-        if db_img is None or db_img[4] != self.reduced_size_factor:
+        if db_img is None or self.reduced_size_factor not in self.hashes:
             self.calculate_single_hash(self.method)
 
             self.exists = False
             self.copy = False
         else:
             # Get a list of the other hashes saved for this image
-            self.hashes = img_handler.find_image_hashes(self.md5)
             # If there already exists a value for this object's hashes, get them all
             if self.hashes[self.reduced_size_factor]:
-                self.a_hash = self.hashes[self.reduced_size_factor][1]
-                self.p_hash = self.hashes[self.reduced_size_factor][2]
-                self.d_hash = self.hashes[self.reduced_size_factor][3]
+                self.a_hash = self.hashes[self.reduced_size_factor]['a_hash']
+                self.p_hash = self.hashes[self.reduced_size_factor]['p_hash']
+                self.d_hash = self.hashes[self.reduced_size_factor]['d_hash']
                 self.new_hashes = False
             # Otherwise calculate a new hash
             else:
@@ -115,7 +116,7 @@ class ImageWorker:
                 self.new_hashes = True
             # Determine if this image is only a copy (by the name of the file)
             self.exists = True
-            self.copy = db_img[0] != self.name
+            self.copy = db_img['name'] != self.name
 
             # Get all ignored images
             self.image_ignore = img_handler.find_image_ignore(self.md5, self.name)
