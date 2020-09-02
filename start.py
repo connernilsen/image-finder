@@ -31,17 +31,22 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", "-v", action="store_true", help="Display calculated image hashes and diff values")
     args = parser.parse_args()
 
-    if args.drop_db or args.rebuild_db:
+    # Drop database and then exit the program
+    if args.drop_db:
         db_setup.drop_db(args.db_path, args.verbose)
 
-    if not args.avoid_db and not args.no_migrate:
-        db_setup.check_db_version(args.db_path, args.verbose)
-
     else:
+        # If migrations are enabled and we're not avoiding the db, make sure it's updated (and update if not)
+        if not args.avoid_db and not args.no_migrate:
+            db_setup.check_db_version(args.db_path, args.verbose)
+
+        # Get a singleton instance of the ImageLoadOrchastrator
         orc = ImageLoadOrchastrator.get_instance(args.image_working_dir, args.db_path, args.verbose,
                                                  args.precision, args.reduced_size_factor)
+
+        # If we're only trying to add images to the ignore list, do that
         if args.ignore_similarity:
-            orc.ignore_similartiy(args.ignore_similarity[0], args.ignore_similarity[1])
+            orc.ignore_similarity(args.ignore_similarity[0], args.ignore_similarity[1])
+        # Otherwise, load images and find similar results asynchronously
         else:
             asyncio.run(orc.run(args.comparison_method, args.avoid_db))
-
