@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 from db import image_database_setup as db_setup
-from db.database import default_path as default_database_path
+from db.database_worker import default_path as default_database_path
 from image_load_orchastrator import ImageLoadOrchastrator, default_working_dir
 
 if __name__ == "__main__":

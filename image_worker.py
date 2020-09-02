@@ -52,9 +52,9 @@ class ImageWorker:
         # The path to the database files (SQLite3)
         self.db_path = None
         # Images which this image should be considered not similar to
-        self.image_ignore = None
+        self.image_ignore = []
         # A list of hashes for images with different sizes
-        self.hashes = None
+        self.hashes = []
 
         # A list of workers with exact matches
         self.exact = []
@@ -119,6 +119,8 @@ class ImageWorker:
 
             # Get all ignored images
             self.image_ignore = img_handler.find_image_ignore(self.md5, self.name)
+            if self.image_ignore is None:
+                self.image_ignore = []
 
         return self
 
@@ -335,13 +337,15 @@ class ImageWorker:
         return hex_val
 
     # Move this image into the provided directory (the directory should not exist)
-    async def move(self, new_path: str) -> None:
+    def move(self, new_path: str) -> None:
         self.check_init()
-        curr_path = self.working_dir + self.name
+        curr_path = path.join(self.working_dir, self.name)
         if not path.exists(curr_path):
             raise Exception(f"Image {self.name} not found before move")
         if not path.isfile(curr_path):
             raise Exception(f"Image {self.name} is not a file")
+        if not path.exists(new_path):
+            raise Exception(f"new_path variable {new_path} does not exist")
 
         # Move all exact images into a subdirectory first and then move this image into the same
         if len(self.exact) != 0:

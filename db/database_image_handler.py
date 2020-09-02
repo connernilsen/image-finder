@@ -1,4 +1,4 @@
-from db.database import DatabaseWorker, default_path
+from db.database_worker import DatabaseWorker, default_path
 from typing import Dict, List
 
 
@@ -34,10 +34,11 @@ class DatabaseImageHandler:
         self.worker.execute("INSERT INTO image (md5_hash, name, width, height)"
                             "VALUES (:md5, :name, :width, :height);",
                             {"md5": md5, "name": name, "width": width, "height": height})
+        self.worker.commit_changes()
 
     # Save an image's hash information
     def save_image_hash(self, md5: str, a_hash: str, d_hash: str, p_hash: str, reduced_size_factor: int) -> None:
-        self.worker.execute("SELECT md5_hash WHERE md5_hash = :md5 and reduced_size_factor = :size",
+        self.worker.execute("SELECT md5_hash FROM image_hashes WHERE md5_hash = :md5 and reduced_size_factor = :size",
                             {"md5": md5, "size": reduced_size_factor})
         if self.worker.get_result():
             return
@@ -45,6 +46,7 @@ class DatabaseImageHandler:
                             "VALUES (:md5, :a_hash, :d_hash, :p_hash, :size)",
                             {"md5": md5, "a_hash": a_hash, "d_hash": d_hash,
                              "p_hash": p_hash, "size": reduced_size_factor})
+        self.worker.commit_changes()
 
     # Save an image ignore request
     def save_ignore_similarity(self, md5_1: str, md5_2: str):

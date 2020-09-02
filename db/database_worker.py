@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from sqlite3 import DatabaseError, IntegrityError, ProgrammingError
 from typing import Dict, List
 
@@ -38,7 +37,7 @@ class DatabaseWorker:
             self.__cursor.execute(sql, bindings)
         except (DatabaseError, IntegrityError, ProgrammingError) as e:
             raise Exception('Did not receive successful insert status for'
-                            f' { {sql} }, message is { {str(e)} }')
+                            f' { {sql} }, message is { {str(e)} }', e)
 
     # Return the result of a query
     def get_result(self) -> List[any]:
@@ -56,9 +55,14 @@ class DatabaseWorker:
     def rollback_changes(self) -> None:
         self.__db.rollback()
 
+    def get_warnings(self) -> List:
+        return self.__cursor.fetchwarnings()
+
     def zip_object(self, obj: List[any], keys: List[str] = None) -> Dict[str, any]:
+        if obj is None:
+            return None
         if keys is None:
-            keys = [col[0] for col in self.__cursor.description()]
+            keys = [col[0] for col in self.__cursor.description]
         return dict(zip(keys, obj))
 
     # Zip multiple results from a query (turn them into an object)

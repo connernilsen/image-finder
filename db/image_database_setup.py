@@ -1,6 +1,5 @@
-from . import database
+from . import database_worker
 
-database_version = 0.1
 migrations = [
     (0.1, "CREATE TABLE image ("
           "md5_hash TEXT NOT NULL UNIQUE,"
@@ -38,11 +37,13 @@ migrations = [
 
 
 def check_db_version(db_path, verbose):
-    worker = database.DatabaseWorker(db_path, verbose)
+    worker = database_worker.DatabaseWorker(db_path, verbose)
     if verbose:
         print("Checking db version")
     worker.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name=:table_name ;",
                    {"table_name": "metadata"})
+
+    database_version = migrations[-1][0]
 
     row = worker.get_single_result()
     correct_version = True
@@ -67,12 +68,12 @@ def check_db_version(db_path, verbose):
 
     if verbose:
         print("Updating db")
-    update_db(db_path, current_version, verbose)
+    update_db(db_path, current_version, verbose, database_version)
 
 
-def update_db(db_path, current_version, verbose):
-    worker = database.DatabaseWorker(db_path, verbose)
-    worker.execute("CREATE TABLE metadata ("
+def update_db(db_path: str, current_version: float, verbose: bool, database_version: float):
+    worker = database_worker.DatabaseWorker(db_path, verbose)
+    worker.execute("CREATE TABLE IF NOT EXISTS metadata ("
                    "version REAL"
                    ") ;", "")
     worker.execute("INSERT INTO metadata VALUES (:version) ;", {"version": database_version})
@@ -92,5 +93,5 @@ def update_db(db_path, current_version, verbose):
 def drop_db(db_path, verbose):
     if verbose:
         print("Dropping dbs")
-    worker = database.DatabaseWorker(db_path, verbose)
+    worker = database_worker.DatabaseWorker(db_path, verbose)
     worker.drop_dbs()

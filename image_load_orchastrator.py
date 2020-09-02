@@ -67,8 +67,8 @@ class ImageLoadOrchastrator:
         # Get groupings of alike and exact matches
         groups = self.get_groupings(workers)
 
-        # Move each image into it's new folder for comparison
-        await self.move_groups(groups)
+        # Move each image into its new folder for comparison
+        self.move_groups(groups)
 
         # Finish by saving all images to the database if we're not avoiding it
         if not avoid_db:
@@ -94,7 +94,7 @@ class ImageLoadOrchastrator:
                 continue
 
             # Copy the alike workers
-            current = worker.alike.values().copy()
+            current = worker.alike.values()
             # Add all found MD5s to the found list so that files aren't moved multiple times
             found.extend(list(worker.alike.keys()))
             # Only append to the return list of groups if there are results
@@ -121,8 +121,7 @@ class ImageLoadOrchastrator:
         return workers
 
     # Loop through and move groups of images into new folders
-    async def move_groups(self, groups: List[List[ImageWorker]]) -> None:
-        tasks = []
+    def move_groups(self, groups: List[List[ImageWorker]]) -> None:
         # Loop through and move each group
         for group in groups:
             # Create some random numerical suffix from 0 to 2^50
@@ -133,18 +132,16 @@ class ImageLoadOrchastrator:
             mkdir(new_path)
             # Asynchronously move all images into the new directory
             for image in group:
-                tasks.append(asyncio.create_task(image.move(path)))
-        # Wait until all tasks are done before returning
-        await asyncio.gather(tasks)
+                image.move(new_path)
 
     # Save all images to the database
     @staticmethod
     async def save_image_data(workers: List[ImageWorker]) -> None:
         tasks = []
-        for worker in workers:
+        for worker in workers.values():
             tasks.append(asyncio.create_task(worker.save_image_data()))
 
-        await asyncio.gather(tasks)
+        await asyncio.gather(*tasks)
 
     # Add an ignore similarity request
     def ignore_similarity(self, image_1_name: str, image_2_name: str) -> None:
